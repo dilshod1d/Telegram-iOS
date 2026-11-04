@@ -26,7 +26,7 @@ class ResolvedCodesigningData:
 
 
 class BazelCommandLine:
-    def __init__(self, bazel, override_bazel_version, override_xcode_version, bazel_user_root):
+    def __init__(self, bazel, override_bazel_version, override_xcode_version, bazel_user_root, additional_args=None):
         self.build_environment = BuildEnvironment(
             base_path=os.getcwd(),
             bazel_path=bazel,
@@ -38,7 +38,7 @@ class BazelCommandLine:
         self.lock = False
         self.remote_cache = None
         self.cache_dir = None
-        self.additional_args = None
+        self.additional_args = additional_args
         self.build_number = None
         self.configuration_args = None
         self.split_submodules = False
@@ -262,6 +262,7 @@ class BazelCommandLine:
         if self.show_actions:
             combined_arguments += ['--subcommands']
 
+        combined_arguments += self.get_additional_build_arguments()
         return combined_arguments
 
     def get_additional_build_arguments(self):
@@ -275,6 +276,7 @@ class BazelCommandLine:
                 '--features=swift.split_derived_files_generation',
             ]
 
+        combined_arguments += shlex.split(self.additional_args or "")
         return combined_arguments
 
     def invoke_build(self):
@@ -382,6 +384,8 @@ class BazelCommandLine:
             combined_arguments += [
                 '--disk_cache={path}'.format(path=self.cache_dir)
             ]
+
+        combined_arguments += self.get_additional_build_arguments()
 
         # Add user-provided query arguments
         combined_arguments += query_args
@@ -504,7 +508,8 @@ def generate_project(bazel, arguments):
         bazel=bazel,
         override_bazel_version=arguments.overrideBazelVersion,
         override_xcode_version=arguments.overrideXcodeVersion,
-        bazel_user_root=arguments.bazelUserRoot
+        bazel_user_root=arguments.bazelUserRoot,
+        additional_args=arguments.bazelArguments
     )
 
     if arguments.cacheDir is not None:
@@ -612,7 +617,8 @@ def build(bazel, arguments):
         bazel=bazel,
         override_bazel_version=arguments.overrideBazelVersion,
         override_xcode_version=arguments.overrideXcodeVersion,
-        bazel_user_root=arguments.bazelUserRoot
+        bazel_user_root=arguments.bazelUserRoot,
+        additional_args=arguments.bazelArguments
     )
 
     if arguments.lock:
@@ -697,7 +703,8 @@ def test(bazel, arguments):
         bazel=bazel,
         override_bazel_version=arguments.overrideBazelVersion,
         override_xcode_version=arguments.overrideXcodeVersion,
-        bazel_user_root=arguments.bazelUserRoot
+        bazel_user_root=arguments.bazelUserRoot,
+        additional_args=arguments.bazelArguments
     )
 
     if arguments.cacheDir is not None:
@@ -723,7 +730,8 @@ def query(bazel, arguments):
         bazel=bazel,
         override_bazel_version=arguments.overrideBazelVersion,
         override_xcode_version=arguments.overrideXcodeVersion,
-        bazel_user_root=arguments.bazelUserRoot
+        bazel_user_root=arguments.bazelUserRoot,
+        additional_args=arguments.bazelArguments
     )
 
     if arguments.cacheDir is not None:
@@ -914,7 +922,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--bazelArguments',
         required=False,
-        help='Add additional arguments to all bazel invocations.',
+        help='Add additional options to Bazel build, test, project-generation and query invocations.',
         metavar='arguments'
     )
 
