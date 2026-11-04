@@ -244,14 +244,16 @@ public final class HorizontalTabsComponent: Component {
         public let badge: Badge?
         public let action: () -> Void
         public let contextAction: ((ContextExtractedContentContainingView, ContextGesture?) -> Void)?
+        public let isReorderable: Bool
         public let deleteAction: (() -> Void)?
         
-        public init(id: AnyHashable, content: Content, badge: Badge?, action: @escaping () -> Void, contextAction: ((ContextExtractedContentContainingView, ContextGesture?) -> Void)? = nil, deleteAction: (() -> Void)? = nil) {
+        public init(id: AnyHashable, content: Content, badge: Badge?, action: @escaping () -> Void, contextAction: ((ContextExtractedContentContainingView, ContextGesture?) -> Void)? = nil, isReorderable: Bool = true, deleteAction: (() -> Void)? = nil) {
             self.id = id
             self.content = content
             self.badge = badge
             self.action = action
             self.contextAction = contextAction
+            self.isReorderable = isReorderable
             self.deleteAction = deleteAction
         }
         
@@ -266,6 +268,9 @@ public final class HorizontalTabsComponent: Component {
                 return false
             }
             if (lhs.contextAction == nil) != (rhs.contextAction == nil) {
+                return false
+            }
+            if lhs.isReorderable != rhs.isReorderable {
                 return false
             }
             if (lhs.deleteAction == nil) != (rhs.deleteAction == nil) {
@@ -450,7 +455,10 @@ public final class HorizontalTabsComponent: Component {
                 guard let self else {
                     return false
                 }
-                for (_, itemView) in self.itemViews {
+                for (id, itemView) in self.itemViews {
+                    guard self.component?.tabs.first(where: { $0.id == id })?.isReorderable != false else {
+                        continue
+                    }
                     guard let itemView = itemView.regularView.view else {
                         continue
                     }
@@ -478,6 +486,9 @@ public final class HorizontalTabsComponent: Component {
         func beginReordering(at point: CGPoint) {
             self.initialReorderedItemIds = self.reorderedItemIds
             for (id, itemView) in self.itemViews {
+                guard self.component?.tabs.first(where: { $0.id == id })?.isReorderable != false else {
+                    continue
+                }
                 guard let regularItemView = itemView.regularView.view, let selectedItemView = itemView.selectedView.view else {
                     continue
                 }
@@ -550,6 +561,10 @@ public final class HorizontalTabsComponent: Component {
                                 } else {
                                     updatedReorderedItemIds.remove(at: currentItemIndex)
                                     updatedReorderedItemIds.insert(reorderingItem, at: targetIndex)
+                                }
+                                for (index, tab) in (self.component?.tabs ?? []).enumerated() where !tab.isReorderable {
+                                    updatedReorderedItemIds.removeAll(where: { $0 == tab.id })
+                                    updatedReorderedItemIds.insert(tab.id, at: min(index, updatedReorderedItemIds.count))
                                 }
                                 self.reorderedItemIds = updatedReorderedItemIds
                                 

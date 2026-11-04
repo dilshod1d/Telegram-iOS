@@ -513,7 +513,7 @@ public final class ChatListFilterTabContainerNode: ASDisplayNode {
                 case .all:
                     return 0
                 case let .filter(id):
-                    return id
+                    return id == ChatListFilter.peopleId ? nil : id
                 }
             }
         }
@@ -522,6 +522,9 @@ public final class ChatListFilterTabContainerNode: ASDisplayNode {
     public var filtersCount: Int32 {
         if let (_, _, filters, _, _, _, _, _, _, _) = self.currentParams {
             let filters = filters.filter { filter in
+                if case .filter(ChatListFilter.peopleId, _, _) = filter {
+                    return false
+                }
                 if case .all = filter {
                     return false
                 } else {
@@ -568,7 +571,10 @@ public final class ChatListFilterTabContainerNode: ASDisplayNode {
             guard let strongSelf = self else {
                 return false
             }
-            for (_, itemNode) in strongSelf.itemNodes {
+            for (id, itemNode) in strongSelf.itemNodes {
+                if id == .filter(ChatListFilter.peopleId) {
+                    continue
+                }
                 if itemNode.view.convert(itemNode.bounds, to: strongSelf.view).contains(point) {
                     return true
                 }
@@ -664,6 +670,10 @@ public final class ChatListFilterTabContainerNode: ASDisplayNode {
                                 } else {
                                     updatedReorderedItemIds.remove(at: currentItemIndex)
                                     updatedReorderedItemIds.insert(reorderingItem, at: targetIndex)
+                                }
+                                if let peopleIndex = updatedReorderedItemIds.firstIndex(of: .filter(ChatListFilter.peopleId)) {
+                                    updatedReorderedItemIds.remove(at: peopleIndex)
+                                    updatedReorderedItemIds.insert(.filter(ChatListFilter.peopleId), at: min(1, updatedReorderedItemIds.count))
                                 }
                                 strongSelf.reorderedItemIds = updatedReorderedItemIds
                                 if let (size, sideInset, filters, selectedFilter, isReordering, isEditing, canReorderAllChats, filtersLimit, transitionFraction, presentationData) = strongSelf.currentParams {
@@ -805,14 +815,18 @@ public final class ChatListFilterTabContainerNode: ASDisplayNode {
                 unreadCount = count
                 unreadHasUnmuted = true
                 isNoFilter = true
-            case let .filter(_, _, unread):
+            case let .filter(id, _, unread):
                 unreadCount = unread.value
                 unreadHasUnmuted = unread.hasUnmuted
                 
-                if let filtersLimit = filtersLimit {
-                    isDisabled = !canReorderAllChats && folderIndex >= filtersLimit
+                if id == ChatListFilter.peopleId {
+                    isNoFilter = true
+                } else {
+                    if let filtersLimit = filtersLimit {
+                        isDisabled = !canReorderAllChats && folderIndex >= filtersLimit
+                    }
+                    folderIndex += 1
                 }
-                folderIndex += 1
             }
             if !wasAdded && (itemNode.unreadCount != 0) != (unreadCount != 0) {
                 badgeAnimations[filter.id] = (unreadCount != 0) ? .in : .out

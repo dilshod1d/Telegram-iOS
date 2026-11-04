@@ -3289,7 +3289,7 @@ public final class ChatListNode: ListViewImpl {
     }
     
     private func resetFilter() {
-        if let chatListFilter = self.chatListFilter, chatListFilter.id != Int32.max {
+        if let chatListFilter = self.chatListFilter, chatListFilter.id != Int32.max && chatListFilter.id != ChatListFilter.peopleId {
             self.updatedFilterDisposable.set((self.context.engine.peers.updatedChatListFilters()
             |> map { filters -> ChatListFilter? in
                 for filter in filters {

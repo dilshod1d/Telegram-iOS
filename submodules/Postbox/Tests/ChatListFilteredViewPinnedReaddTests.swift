@@ -137,4 +137,30 @@ final class ChatListFilteredViewPinnedReaddTests: XCTestCase {
         XCTAssertNil(rows.first?.index.pinningIndex)
         XCTAssertEqual(self.peerOrder(in: view), [self.otherChat, self.otherPinnedChat, self.pinnedChat])
     }
+
+    func testFilteredMainListPreservesEligiblePinsAndTracksReordering() {
+        self.seedMainListWithTwoPinnedChats()
+        self.filter.includesPinnedChat = true
+        var predicate = self.folderPredicate()
+        predicate.preservePinnedOrder = true
+        let recorder = self.fixture.observe(self.fixture.postbox.tailChatListView(groupId: .root, filterPredicate: predicate, count: 10, summaryComponents: ChatListEntrySummaryComponents()) |> map { $0.0 })
+        let initial = recorder.waitForValues(count: 1).last
+        XCTAssertEqual(self.peerOrder(in: initial), [self.otherChat, self.otherPinnedChat, self.pinnedChat])
+        XCTAssertNotNil(self.entries(for: self.pinnedChat, in: initial).first?.index.pinningIndex)
+
+        self.fixture.transaction { transaction in
+            transaction.setPinnedItemIds(groupId: .root, itemIds: [.peer(self.otherPinnedChat), .peer(self.pinnedChat)])
+        }
+        let reordered = recorder.waitForValues(count: 2).last
+        XCTAssertEqual(self.peerOrder(in: reordered), [self.otherChat, self.pinnedChat, self.otherPinnedChat])
+
+        self.filter.includesPinnedChat = false
+        self.fixture.transaction { transaction in
+            transaction.updatePeerCachedData(peerIds: [self.pinnedChat], update: { _, _ in FixtureCachedPeerData(peerIds: []) })
+        }
+        let filtered = recorder.waitForValues(count: 3).last
+        XCTAssertTrue(self.entries(for: self.pinnedChat, in: filtered).isEmpty)
+        XCTAssertNotNil(self.entries(for: self.otherPinnedChat, in: filtered).first?.index.pinningIndex)
+    }
+
 }

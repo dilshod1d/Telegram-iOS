@@ -957,6 +957,10 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
     }
     
     func tabContextGesture(id: Int32?, sourceNode: ContextExtractedContentContainingNode?, sourceView: ContextExtractedContentContainingView?, gesture: ContextGesture?, keepInPlace: Bool, isDisabled: Bool) {
+        if id == ChatListFilter.peopleId {
+            gesture?.cancel()
+            return
+        }
         let context = self.context
         let filterPeersAreMuted: Signal<(areMuted: Bool, peerIds: [EnginePeer.Id])?, NoError> = self.context.engine.peers.currentChatListFilters()
         |> take(1)
@@ -1510,7 +1514,7 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
                             animated: !scrollToEndIfExists,
                             options: navigationAnimationOptions,
                             parentGroupId: groupId._asGroup(),
-                            chatListFilter: self.chatListDisplayNode.mainContainerNode.currentItemNode.chatListFilter?.id, completion: { [weak self] controller in
+                            chatListFilter: self.chatListDisplayNode.mainContainerNode.currentItemNode.chatListFilter.flatMap { $0.id == ChatListFilter.peopleId ? nil : $0.id }, completion: { [weak self] controller in
                                 guard let self else {
                                     return
                                 }
@@ -1861,7 +1865,7 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
             guard let strongSelf = self, let navigationController = strongSelf.navigationController as? NavigationController else {
                 return
             }
-            if let filter = strongSelf.chatListDisplayNode.effectiveContainerNode.currentItemNode.chatListFilter {
+            if let filter = strongSelf.chatListDisplayNode.effectiveContainerNode.currentItemNode.chatListFilter, filter.id != ChatListFilter.peopleId {
                 strongSelf.push(chatListFilterPresetController(context: strongSelf.context, currentPreset: filter, updated: { _ in }))
             } else {
                 if case let .forum(peerId) = strongSelf.chatListDisplayNode.effectiveContainerNode.location {
@@ -1941,7 +1945,7 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
                         } else {
                             let chatListController = ChatListControllerImpl(context: strongSelf.context, location: .forum(peerId: channel.id), controlsHistoryPreload: false, hideNetworkActivityStatus: true, previewing: true, enableDebugActions: false)
                             chatListController.navigationPresentation = .master
-                            let contextController = makeContextController(context: strongSelf.context, presentationData: strongSelf.presentationData, source: .controller(ContextControllerContentSourceImpl(controller: chatListController, sourceNode: node, navigationController: strongSelf.navigationController as? NavigationController)), items: chatContextMenuItems(context: strongSelf.context, peerId: peer.peerId, promoInfo: promoInfo, source: .chatList(filter: strongSelf.chatListDisplayNode.mainContainerNode.currentItemNode.chatListFilter), chatListController: strongSelf, joined: joined) |> map { ContextController.Items(content: .list($0)) }, gesture: gesture)
+                            let contextController = makeContextController(context: strongSelf.context, presentationData: strongSelf.presentationData, source: .controller(ContextControllerContentSourceImpl(controller: chatListController, sourceNode: node, navigationController: strongSelf.navigationController as? NavigationController)), items: chatContextMenuItems(context: strongSelf.context, peerId: peer.peerId, promoInfo: promoInfo, source: .chatList(filter: strongSelf.chatListDisplayNode.mainContainerNode.currentItemNode.chatListFilter.flatMap { $0.id == ChatListFilter.peopleId ? nil : $0 }), chatListController: strongSelf, joined: joined) |> map { ContextController.Items(content: .list($0)) }, gesture: gesture)
                             strongSelf.presentInGlobalOverlay(contextController)
                         }
                     } else if let peer = peer.peer, peer.id == strongSelf.context.account.peerId, peerData.displayAsTopicList {
@@ -1953,7 +1957,7 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
                                 source = .controller(ContextControllerContentSourceImpl(controller: peerInfoController, sourceNode: node, navigationController: strongSelf.navigationController as? NavigationController))
                             }
                             
-                            let contextController = makeContextController(context: strongSelf.context, presentationData: strongSelf.presentationData, source: source, items: chatContextMenuItems(context: strongSelf.context, peerId: peer.id, promoInfo: promoInfo, source: .chatList(filter: strongSelf.chatListDisplayNode.mainContainerNode.currentItemNode.chatListFilter), chatListController: strongSelf, joined: joined) |> map { ContextController.Items(content: .list($0)) }, gesture: gesture)
+                            let contextController = makeContextController(context: strongSelf.context, presentationData: strongSelf.presentationData, source: source, items: chatContextMenuItems(context: strongSelf.context, peerId: peer.id, promoInfo: promoInfo, source: .chatList(filter: strongSelf.chatListDisplayNode.mainContainerNode.currentItemNode.chatListFilter.flatMap { $0.id == ChatListFilter.peopleId ? nil : $0 }), chatListController: strongSelf, joined: joined) |> map { ContextController.Items(content: .list($0)) }, gesture: gesture)
                             strongSelf.presentInGlobalOverlay(contextController)
                         }
                     } else {
@@ -1974,7 +1978,7 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
                             source = .controller(ContextControllerContentSourceImpl(controller: chatController, sourceNode: node, navigationController: strongSelf.navigationController as? NavigationController))
                         }
                         
-                        let contextController = makeContextController(context: strongSelf.context, presentationData: strongSelf.presentationData, source: source, items: chatContextMenuItems(context: strongSelf.context, peerId: peer.peerId, promoInfo: promoInfo, source: .chatList(filter: strongSelf.chatListDisplayNode.mainContainerNode.currentItemNode.chatListFilter), chatListController: strongSelf, joined: joined) |> map { ContextController.Items(content: .list($0)) }, gesture: gesture)
+                        let contextController = makeContextController(context: strongSelf.context, presentationData: strongSelf.presentationData, source: source, items: chatContextMenuItems(context: strongSelf.context, peerId: peer.peerId, promoInfo: promoInfo, source: .chatList(filter: strongSelf.chatListDisplayNode.mainContainerNode.currentItemNode.chatListFilter.flatMap { $0.id == ChatListFilter.peopleId ? nil : $0 }), chatListController: strongSelf, joined: joined) |> map { ContextController.Items(content: .list($0)) }, gesture: gesture)
                         strongSelf.presentInGlobalOverlay(contextController)
                         
                         dismissPreviewingImpl = { [weak self, weak contextController] animateIn in
@@ -3664,6 +3668,9 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
                 guard let value = item.base as? Int32 else {
                     return nil
                 }
+                if value == ChatListFilter.peopleId {
+                    return nil
+                }
                 if value == Int32.min {
                     return 0
                 }
@@ -3683,6 +3690,9 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
                 if let entry = tabContainerData.0.first(where: { $0.id == mappedId }) {
                     entries.append(entry)
                 }
+            }
+            if let people = tabContainerData.0.first(where: { $0.id == .filter(ChatListFilter.peopleId) }) {
+                entries.insert(people, at: min(1, entries.count))
             }
             self.tabContainerData?.0 = entries
         }
@@ -4032,7 +4042,13 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
     
     private var initializedFilters = false
     private func reloadFilters(firstUpdate: (() -> Void)? = nil) {
-        let filterItems = chatListFilterItems(context: self.context)
+        let includePeople: Bool
+        if case .chatList(.root) = self.location {
+            includePeople = true
+        } else {
+            includePeople = false
+        }
+        let filterItems = chatListFilterItems(context: self.context, includePeople: includePeople)
         var notifiedFirstUpdate = false
         self.filterDisposable.set((combineLatest(queue: .mainQueue(),
             filterItems,
@@ -4063,6 +4079,10 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
                 }
             }
             
+            if includePeople, let index = filterItems.firstIndex(where: { $0.id == .filter(ChatListFilter.peopleId) }) {
+                let people = filterItems.remove(at: index)
+                filterItems.insert(people, at: min(1, filterItems.count))
+            }
             var resolvedItems = filterItems
             if case .chatList(.root) = strongSelf.location {
             } else {
@@ -4120,7 +4140,11 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
             if !hasAllChats {
                 availableFilters.insert(.all, at: 0)
             }
-            strongSelf.chatListDisplayNode.mainContainerNode.updateAvailableFilters(availableFilters, limit: filtersLimit)
+            if includePeople, let index = availableFilters.firstIndex(where: { $0.id == .filter(ChatListFilter.peopleId) }) {
+                let people = availableFilters.remove(at: index)
+                availableFilters.insert(people, at: min(1, availableFilters.count))
+            }
+            strongSelf.chatListDisplayNode.mainContainerNode.updateAvailableFilters(availableFilters, limit: filtersLimit.map { $0 + (includePeople ? 1 : 0) })
             
             if isPremium == nil && items.isEmpty {
                 strongSelf.mainReady.set(strongSelf.chatListDisplayNode.mainContainerNode.currentItemNode.ready)
@@ -4180,6 +4204,8 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
             switch id {
             case .all:
                 updatedFilter = nil
+            case let .filter(id) where id == ChatListFilter.peopleId:
+                updatedFilter = peopleChatListFilter(context: strongSelf.context)
             case let .filter(id):
                 var found = false
                 var foundValue: ChatListFilter?
@@ -4554,6 +4580,9 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
     }
     
     func askForFilterRemoval(id: Int32) {
+        guard id != ChatListFilter.peopleId else {
+            return
+        }
         let apply: () -> Void = { [weak self] in
             guard let strongSelf = self else {
                 return

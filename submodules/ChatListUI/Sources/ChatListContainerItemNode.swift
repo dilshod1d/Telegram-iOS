@@ -123,7 +123,7 @@ final class ChatListContainerItemNode: ASDisplayNode {
                 } else {
                     let subject: ChatListEmptyNode.Subject
                     if let filter = filter {
-                        var showEdit = true
+                        var showEdit = filter.id != ChatListFilter.peopleId
                         if case let .filter(_, _, _, data) = filter {
                             if data.excludeRead && data.includePeers.peers.isEmpty && data.includePeers.pinnedPeers.isEmpty {
                                 showEdit = false

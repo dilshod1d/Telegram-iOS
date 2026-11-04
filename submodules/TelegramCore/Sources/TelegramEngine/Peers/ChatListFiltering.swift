@@ -296,6 +296,8 @@ public struct ChatFolderTitle: Codable, Equatable {
 }
 
 public enum ChatListFilter: Codable, Equatable {
+    public static let peopleId: Int32 = -2
+
     case allChats
     case filter(id: Int32, title: ChatFolderTitle, emoticon: String?, data: ChatListFilterData)
     

@@ -8,7 +8,30 @@ import AccountContext
 import TelegramUIPreferences
 import TelegramCore
 
-public func chatListFilterItems(context: AccountContext) -> Signal<(Int, [(ChatListFilter, Int, Bool)]), NoError> {
+func peopleChatListFilter(context: AccountContext) -> ChatListFilter {
+    let excludedIds: [Int64] = [333000, 777000, 42777, 489000, 708513, 1271266957, 2666000]
+    let excludedPeers = excludedIds.map { value in
+        EnginePeer.Id(namespace: Namespaces.Peer.CloudUser, id: EnginePeer.Id.Id._internalFromInt64Value(value))
+    } + [context.account.peerId]
+    return .filter(
+        id: ChatListFilter.peopleId,
+        title: ChatFolderTitle(text: context.sharedContext.currentPresentationData.with { $0 }.strings.ChatList_Tabs_People, entities: [], enableAnimations: false),
+        emoticon: nil,
+        data: ChatListFilterData(
+            isShared: false,
+            hasSharedLinks: false,
+            categories: [.contacts, .nonContacts],
+            excludeMuted: false,
+            excludeRead: false,
+            excludeArchived: true,
+            includePeers: ChatListFilterIncludePeers(peers: [], pinnedPeers: []),
+            excludePeers: excludedPeers,
+            color: nil
+        )
+    )
+}
+
+public func chatListFilterItems(context: AccountContext, includePeople: Bool = false) -> Signal<(Int, [(ChatListFilter, Int, Bool)]), NoError> {
     // A folder never names a secret chat. ChatListFilterPredicate resolves a secret chat's identity
     // to its associated cloud user, so including or excluding the user silently does the same to the
     // secret chat; and a folder can pin one, which ChatListFilterIncludePeers deliberately keeps out
@@ -19,6 +42,17 @@ public func chatListFilterItems(context: AccountContext) -> Signal<(Int, [(ChatL
     // afterwards is not reflected in the badge until the filters change again or the app restarts.
     return context.engine.peers.updatedChatListFilters()
     |> distinctUntilChanged
+    |> map { filters -> [ChatListFilter] in
+        guard includePeople else {
+            return filters
+        }
+        var result = filters
+        if result.isEmpty {
+            result.append(.allChats)
+        }
+        result.insert(peopleChatListFilter(context: context), at: min(1, result.count))
+        return result
+    }
     |> mapToSignal { filters -> Signal<([ChatListFilter], [EnginePeer.Id: [EnginePeer.Id]], [EnginePeer.Id: EnginePeer.Id]), NoError> in
         var folderPeerIds = Set<EnginePeer.Id>()
         for case let .filter(_, _, _, data) in filters {

@@ -447,6 +447,7 @@ public struct ChatListFilterPredicate {
     public var includePeerIds: Set<PeerId>
     public var excludePeerIds: Set<PeerId>
     public var pinnedPeerIds: [PeerId]
+    public var preservePinnedOrder: Bool = false
     public var messageTagSummary: ChatListMessageTagSummaryResultCalculation?
     public var includeAdditionalPeerGroupIds: [PeerGroupId]
     public var include: (Peer, Bool, Bool, Bool, Bool?) -> Bool
@@ -620,7 +621,7 @@ final class MutableChatListView {
             .group(groupId: self.groupId, pinned: .notPinned, predicate: filterPredicate)
         ]
         if let filterPredicate = self.filterPredicate {
-            spaces.append(.group(groupId: self.groupId, pinned: .includePinnedAsUnpinned, predicate: filterPredicate))
+            spaces.append(.group(groupId: self.groupId, pinned: filterPredicate.preservePinnedOrder ? .includePinned : .includePinnedAsUnpinned, predicate: filterPredicate))
             for additionalGroupId in filterPredicate.includeAdditionalPeerGroupIds {
                 spaces.append(.group(groupId: additionalGroupId, pinned: .notPinned, predicate: filterPredicate))
                 spaces.append(.group(groupId: additionalGroupId, pinned: .includePinnedAsUnpinned, predicate: filterPredicate))

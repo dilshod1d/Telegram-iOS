@@ -388,7 +388,7 @@ public final class ChatListContainerNode: ASDisplayNode, ASGestureRecognizerDele
             case .all:
                 filterId = nil
             case let .filter(filter):
-                filterId = filter
+                filterId = filter == ChatListFilter.peopleId ? nil : filter
             }
             return (state, filterId)
         })
@@ -1557,6 +1557,9 @@ final class ChatListControllerNode: ASDisplayNode, ASGestureRecognizerDelegate {
                                 return nil
                             }
                         case .filter:
+                            if entry.id == .filter(ChatListFilter.peopleId) {
+                                continue
+                            }
                             if entry.id == id {
                                 return index
                             }
@@ -1623,6 +1626,9 @@ final class ChatListControllerNode: ASDisplayNode, ASGestureRecognizerDelegate {
                                 
                                 if isDisabled {
                                     let filtersCount = tabContainerData.0.count(where: { item in
+                                        if item.id == .filter(ChatListFilter.peopleId) {
+                                            return false
+                                        }
                                         if case .all = item {
                                             return false
                                         } else {
@@ -1668,7 +1674,8 @@ final class ChatListControllerNode: ASDisplayNode, ASGestureRecognizerDelegate {
                                 
                                 self.controller?.tabContextGesture(id: mappedId, sourceNode: nil, sourceView: sourceView, gesture: gesture, keepInPlace: false, isDisabled: isDisabled)
                             },
-                            deleteAction: (!isEditing || isMainTab) ? nil : { [weak self] in
+                            isReorderable: entry.id != .filter(ChatListFilter.peopleId),
+                            deleteAction: (!isEditing || isMainTab || entry.id == .filter(ChatListFilter.peopleId)) ? nil : { [weak self] in
                                 guard let self else {
                                     return
                                 }

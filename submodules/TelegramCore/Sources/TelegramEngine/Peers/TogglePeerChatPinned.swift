@@ -13,6 +13,9 @@ public enum TogglePeerChatPinnedResult {
 }
 
 func _internal_toggleItemPinned(postbox: Postbox, accountPeerId: PeerId, location: TogglePeerChatPinnedLocation, itemId: PinnedItemId) -> Signal<TogglePeerChatPinnedResult, NoError> {
+    if case .filter(ChatListFilter.peopleId) = location {
+        return _internal_toggleItemPinned(postbox: postbox, accountPeerId: accountPeerId, location: .group(.root), itemId: itemId)
+    }
     return postbox.transaction { transaction -> TogglePeerChatPinnedResult in
         let isPremium = transaction.getPeer(accountPeerId)?.isPremium ?? false
         
@@ -100,6 +103,8 @@ func _internal_getPinnedItemIds(transaction: Transaction, location: TogglePeerCh
     switch location {
     case let .group(groupId):
         return transaction.getPinnedItemIds(groupId: groupId)
+    case let .filter(filterId) where filterId == ChatListFilter.peopleId:
+        return transaction.getPinnedItemIds(groupId: .root)
     case let .filter(filterId):
         var itemIds: [PinnedItemId] = []
         let _ = _internal_updateChatListFiltersInteractively(transaction: transaction, { filters in
@@ -124,6 +129,13 @@ func _internal_reorderPinnedItemIds(transaction: Transaction, location: TogglePe
         } else {
             return false
         }
+    case let .filter(filterId) where filterId == ChatListFilter.peopleId:
+        let original = transaction.getPinnedItemIds(groupId: .root)
+        var reordered = itemIds.filter { original.contains($0) }.makeIterator()
+        let merged = original.map { item in
+            return itemIds.contains(item) ? (reordered.next() ?? item) : item
+        }
+        return _internal_reorderPinnedItemIds(transaction: transaction, location: .group(.root), itemIds: merged)
     case let .filter(filterId):
         var result: Bool = false
         _internal_updateChatListFiltersInteractively(transaction: transaction, { filters in
