@@ -17245,3 +17245,11 @@ Error: %8$@";
 "Gift.Delete.Success" = "Gift Deleted";
 
 "ChatList.Tabs.People" = "People";
+
+"LocalSafety.ApkTitle" = "Android app file";
+"LocalSafety.ApkText" = "APK files can install apps on Android. Malicious apps can steal information. Continue only if you expected this file and verified its source. This warning does not mean the file is malware.";
+"LocalSafety.LinkTitle" = "Check this link";
+"LocalSafety.LinkLogin" = "This address includes a login part before its destination, which can hide the actual website. Check the destination before continuing. This does not mean the link is malicious.";
+"LocalSafety.LinkDirection" = "This address contains hidden text direction controls, which can disguise its destination. Check the destination before continuing. This does not mean the link is malicious.";
+"LocalSafety.LinkMixed" = "This website name mixes letters from different alphabets that can look alike. Check the destination before continuing. This does not mean the link is malicious.";
+"LocalSafety.Destination" = "Destination: %@";

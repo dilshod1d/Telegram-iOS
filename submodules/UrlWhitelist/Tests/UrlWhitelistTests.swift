@@ -121,3 +121,42 @@ final class UrlWhitelistTests: XCTestCase {
         XCTAssertEqual(URL(string: displayUrl)?.host, "evil.org")
     }
 }
+
+
+extension UrlWhitelistTests {
+    func testLocalRiskDoesNotTreatOrdinaryLinksAsMalware() {
+        for url in [
+            "https://example.com/path?email=user@example.org",
+            "http://192.0.2.1/", "https://t.me/example", "https://bit.ly/example",
+            "https://пример.com", "https://日本語.jp", "https://école.fr",
+            "mailto:user@example.com", "tg://resolve?domain=example"
+        ] {
+            XCTAssertNil(localLinkRisk(url), url)
+        }
+    }
+
+    func testLocalRiskExplainsSpecificSignals() {
+        XCTAssertEqual(localLinkRisk("https://trusted.example@destination.example"), .login)
+        XCTAssertEqual(localLinkRisk("https://user:password@example.com"), .login)
+        XCTAssertEqual(localLinkRisk("https://example.com/\u{202e}txt"), .direction)
+        XCTAssertEqual(localLinkRisk("https://example.com/%E2%80%AEtxt"), .direction)
+        XCTAssertEqual(localLinkRisk("https://pаypal.example"), .mixed)
+        XCTAssertEqual(localLinkRisk("https://xn--pypal-4ve.example"), .mixed)
+    }
+
+    func testApkMetadataIncludesConflictingMimeAndExtension() {
+        XCTAssertTrue(isApkFile(name: "APP.APK", mimeType: "text/plain"))
+        XCTAssertTrue(isApkFile(name: "invoice.pdf", mimeType: "application/vnd.android.package-archive; x=1"))
+        XCTAssertFalse(isApkFile(name: "notes.apk.txt", mimeType: "text/plain"))
+        XCTAssertFalse(isApkFile(name: "archive.zip", mimeType: "application/zip"))
+    }
+
+    func testLocalConfirmationIsConsumedOnce() {
+        let url = "https://pаypal.example/test"
+        XCTAssertFalse(consumeLocalLinkConfirmation(url))
+        noteLocalLinkConfirmed(url)
+        XCTAssertFalse(consumeLocalLinkConfirmation("https://pаypal.example/other"))
+        XCTAssertTrue(consumeLocalLinkConfirmation(url))
+        XCTAssertFalse(consumeLocalLinkConfirmation(url))
+    }
+}

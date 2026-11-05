@@ -30,6 +30,7 @@ public func openUserGeneratedUrl(
     concealedAlertOption: OpenUserGeneratedUrlConcealedAlertOption? = nil
 ) -> Disposable {
     var concealed = concealed
+    let risk = localLinkRisk(url)
 
     var presentationData = context.sharedContext.currentPresentationData.with { $0 }
     if forceDark {
@@ -106,7 +107,7 @@ public func openUserGeneratedUrl(
     // A login part hides the host the link opens (see `externalUrlWithLoginPart`).
     let loginPartUrl = externalUrlWithLoginPart(url)
 
-    if forceConcealed || loginPartUrl != nil {
+    if forceConcealed || loginPartUrl != nil || risk != nil {
         concealed = true
     } else if let parsedUrl = parseInternalUrl(sharedContext: context.sharedContext, context: context, query: url) {
         if case .proxy = parsedUrl {
@@ -114,7 +115,7 @@ public func openUserGeneratedUrl(
         }
     }
 
-    if concealed && !skipConcealedAlert {
+    if concealed && (!skipConcealedAlert || risk != nil) {
         // For a login part the prompt shows the host the link really opens. The external-URL opener asks about such
         // a link as well, so accepting it here tells the opener it has been confirmed.
         let displayUrl = loginPartUrl.map { urlRemovingLoginPart($0).absoluteString } ?? parsedString
@@ -131,10 +132,14 @@ public func openUserGeneratedUrl(
             presentationData: presentationData,
             updatedPresentationData: updatedPresentationDataSignal,
             displayUrl: displayUrl,
+            risk: risk,
+            destination: canonicalExternalUrl(from: url)?.host,
             webpage: webpage,
             check: concealedAlertOption.flatMap { option in checkState.map { (title: option.title, state: $0) } },
             open: {
-                if let loginPartUrl {
+                if risk != nil {
+                    noteLocalLinkConfirmed(url)
+                } else if let loginPartUrl {
                     noteLoginPartConfirmed(loginPartUrl)
                 }
                 if checkState?.value == true {
@@ -161,6 +166,8 @@ public func openLinkConfirmationController(
     presentationData: PresentationData,
     updatedPresentationData: Signal<PresentationData, NoError>,
     displayUrl: String,
+    risk: LocalLinkRisk? = nil,
+    destination: String? = nil,
     webpage: TelegramMediaWebpage? = nil,
     check: (title: String, state: AlertCheckComponent.ExternalState)? = nil,
     open: @escaping () -> Void
@@ -172,11 +179,25 @@ public func openLinkConfirmationController(
     }
 
     var shownUrl = rawDisplayUrl
-    shownUrl = shownUrl.replacingOccurrences(of: "\u{202e}", with: "")
+    shownUrl = String(shownUrl.unicodeScalars.filter { !(0x202a...0x202e).contains($0.value) && !(0x2066...0x2069).contains($0.value) })
     shownUrl = (try? punycodedFullURLString(shownUrl)) ?? shownUrl
 
     var content: [AnyComponentWithIdentity<AlertComponentEnvironment>] = []
-    content.append(AnyComponentWithIdentity(id: "title", component: AnyComponent(AlertTitleComponent(title: presentationData.strings.OpenLinkConfirmation_Title))))
+    content.append(AnyComponentWithIdentity(id: "title", component: AnyComponent(AlertTitleComponent(title: risk != nil ? presentationData.strings.LocalSafety_LinkTitle : presentationData.strings.OpenLinkConfirmation_Title))))
+    if let risk {
+        let reason: String
+        switch risk {
+        case .login: reason = presentationData.strings.LocalSafety_LinkLogin
+        case .direction: reason = presentationData.strings.LocalSafety_LinkDirection
+        case .mixed: reason = presentationData.strings.LocalSafety_LinkMixed
+        }
+        let target = destination ?? ""
+        content.append(AnyComponentWithIdentity(id: "risk", component: AnyComponent(AlertTextComponent(
+            content: .plain(reason + "\n\n" + presentationData.strings.LocalSafety_Destination(target).string),
+            alignment: .center,
+            color: .primary
+        ))))
+    }
     content.append(AnyComponentWithIdentity(id: "text", component: AnyComponent(AlertTextComponent(
         content: .plain(shownUrl),
         alignment: .center,

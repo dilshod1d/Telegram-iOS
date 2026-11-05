@@ -359,12 +359,17 @@ private func makeTelegramUrl(_ path: String, queryItems: [URLQueryItem] = []) ->
 func openExternalUrlImpl(context: AccountContext, urlContext: OpenURLContext, url: String, forceExternal: Bool, presentationData: PresentationData, navigationController: NavigationController?, dismissInput: @escaping () -> Void) {
     // A login part hides the host a link opens (see `externalUrlWithLoginPart`). Every external link leaves through
     // here, whoever opens it, so here it is confirmed, unless a prompt that showed the real host was just accepted.
-    if let loginPartUrl = externalUrlWithLoginPart(url), !consumeLoginPartConfirmation(loginPartUrl) {
+    let risk = localLinkRisk(url)
+    let loginPartUrl = externalUrlWithLoginPart(url)
+    let confirmed = consumeLocalLinkConfirmation(url) || (loginPartUrl.map { consumeLoginPartConfirmation($0) } ?? false)
+    if (risk != nil || loginPartUrl != nil) && !confirmed {
         let controller = openLinkConfirmationController(
             context: context,
             presentationData: presentationData,
             updatedPresentationData: .single(presentationData),
-            displayUrl: urlRemovingLoginPart(loginPartUrl).absoluteString,
+            displayUrl: loginPartUrl.map { urlRemovingLoginPart($0).absoluteString } ?? canonicalExternalUrl(from: url)?.absoluteString ?? url,
+            risk: risk,
+            destination: canonicalExternalUrl(from: url)?.host,
             open: {
                 openCheckedExternalUrl(context: context, urlContext: urlContext, url: url, forceExternal: forceExternal, presentationData: presentationData, navigationController: navigationController, dismissInput: dismissInput)
             }

@@ -27,8 +27,29 @@ import StoryContainerScreen
 import WallpaperGalleryScreen
 import BrowserUI
 import PeerMessagesMediaPlaylist
+import UrlWhitelist
 
 func openChatMessageImpl(_ params: OpenChatMessageParams) -> Bool {
+    if params.message.media.contains(where: { media in
+        guard let file = media as? TelegramMediaFile else {
+            return false
+        }
+        return isApkFile(name: file.fileName, mimeType: file.mimeType)
+    }) {
+        let presentationData = params.context.sharedContext.currentPresentationData.with { $0 }
+        params.dismissInput()
+        params.present(textAlertController(context: params.context, title: presentationData.strings.LocalSafety_ApkTitle, text: presentationData.strings.LocalSafety_ApkText, actions: [
+            TextAlertAction(type: .genericAction, title: presentationData.strings.Common_Cancel, action: {}),
+            TextAlertAction(type: .defaultAction, title: presentationData.strings.OpenFile_Proceed, action: {
+                let _ = openCheckedChatMessage(params)
+            })
+        ]), nil, .window(.root))
+        return true
+    }
+    return openCheckedChatMessage(params)
+}
+
+private func openCheckedChatMessage(_ params: OpenChatMessageParams) -> Bool {
     var story: TelegramMediaStory?
     for media in params.message.media {
         if let media = media as? TelegramMediaStory {

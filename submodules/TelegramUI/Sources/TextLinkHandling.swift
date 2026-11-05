@@ -14,6 +14,7 @@ import StickerPackPreviewUI
 import JoinLinkPreviewUI
 import PresentationDataUtils
 import UrlWhitelist
+import OpenUserGeneratedUrl
 import UndoUI
 import BrowserUI
 
@@ -71,7 +72,7 @@ func handleTextLinkActionImpl(context: AccountContext, peerId: EnginePeer.Id?, n
         present: presentImpl, dismissInput: {}, contentContext: nil, progress: nil, completion: nil)
     }
     
-    let openLinkImpl: (String) -> Void = { [weak controller] url in
+    let openCheckedLinkImpl: (String) -> Void = { [weak controller] url in
         navigateDisposable.set((context.sharedContext.resolveUrl(context: context, peerId: peerId, url: url, skipUrlAuth: true) |> deliverOnMainQueue).start(next: { result in
             if let controller = controller {
                 switch result {
@@ -125,6 +126,28 @@ func handleTextLinkActionImpl(context: AccountContext, peerId: EnginePeer.Id?, n
         }))
     }
     
+    let openLinkImpl: (String) -> Void = { [weak controller] url in
+        if let risk = localLinkRisk(url) {
+            guard let controller else {
+                return
+            }
+            controller.present(openLinkConfirmationController(
+                context: context,
+                presentationData: presentationData,
+                updatedPresentationData: .single(presentationData),
+                displayUrl: externalUrlWithLoginPart(url).map { urlRemovingLoginPart($0).absoluteString } ?? canonicalExternalUrl(from: url)?.absoluteString ?? url,
+                risk: risk,
+                destination: canonicalExternalUrl(from: url)?.host,
+                open: {
+                    noteLocalLinkConfirmed(url)
+                    openCheckedLinkImpl(url)
+                }
+            ), in: .window(.root))
+        } else {
+            openCheckedLinkImpl(url)
+        }
+    }
+
     let openPeerMentionImpl: (String) -> Void = { mention in
         navigateDisposable.set((context.engine.peers.resolvePeerByName(name: mention, referrer: nil, ageLimit: 10)
         |> mapToSignal { result -> Signal<EnginePeer?, NoError> in
@@ -149,7 +172,9 @@ func handleTextLinkActionImpl(context: AccountContext, peerId: EnginePeer.Id?, n
                         concealed = true
                     }
                     
-                    if concealed {
+                    if localLinkRisk(url) != nil {
+                        openLinkImpl(url)
+                    } else if concealed {
                         // For a login part the prompt shows the host the link really opens. The external-URL opener
                         // asks about such a link as well, so accepting it here tells the opener it has been confirmed.
                         var rawDisplayUrl: String = loginPartUrl.map { urlRemovingLoginPart($0).absoluteString } ?? parsedString

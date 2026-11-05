@@ -154,6 +154,23 @@ public func consumeLoginPartConfirmation(_ url: URL) -> Bool {
     return loginPartConfirmations.consume(url)
 }
 
+private let localLinkConfirmations = LoginPartConfirmations()
+
+/// Records one accepted local warning for the external opener, with the same bounded lifetime as login prompts.
+public func noteLocalLinkConfirmed(_ value: String) {
+    if let url = canonicalExternalUrl(from: value) {
+        localLinkConfirmations.note(url)
+    }
+}
+
+/// Consumes a local warning once, so a confirmed link does not show a second warning on its way out.
+public func consumeLocalLinkConfirmation(_ value: String) -> Bool {
+    guard let url = canonicalExternalUrl(from: value) else {
+        return false
+    }
+    return localLinkConfirmations.consume(url)
+}
+
 public func parseUrl(url: String, wasConcealed: Bool) -> (string: String, concealed: Bool) {
     var parsedUrlValue: URL?
     if url.hasPrefix("tel:") {
